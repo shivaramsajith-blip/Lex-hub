@@ -8,7 +8,8 @@ from flask import Flask, request, jsonify, send_from_directory
 import sqlite3, os, json
 from datetime import datetime
 
-app = Flask(__name__, static_folder='static')
+import os as _os
+app = Flask(__name__, static_folder=_os.path.dirname(_os.path.abspath(__file__)))
 DATA_DIR = os.environ.get('RAILWAY_VOLUME_MOUNT_PATH', os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(DATA_DIR, 'lexhub.db')
 
@@ -302,7 +303,7 @@ def import_db():
 # ── Serve frontend ───────────────────────────────────────────
 @app.route('/')
 def index():
-    return send_from_directory('static', 'index.html')
+    return send_from_directory(_os.path.dirname(_os.path.abspath(__file__)), 'index.html')
 
 if __name__ == '__main__':
     init_db()
