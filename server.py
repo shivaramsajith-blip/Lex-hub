@@ -305,6 +305,9 @@ def import_db():
 def index():
     return send_from_directory(_os.path.dirname(_os.path.abspath(__file__)), 'index.html')
 
+# Initialize database when module loads (works with gunicorn)
+init_db()
+
 if __name__ == '__main__':
     init_db()
     print("\n" + "="*50)

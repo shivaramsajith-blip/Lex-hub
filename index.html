@@ -544,7 +544,7 @@ function openDetail(id){
   document.getElementById('d-title').textContent = c.title;
   document.getElementById('d-sub').textContent = (c.case_number||'No Case Number') + ' · ' + (c.court||'');
   const d=c.next_hearing?daysUntil(c.next_hearing):null;
-  const ds=d!==null?(d===0?' (Today!)':d>0?` (in ${d} day${d===1?'':'s'})`,' (passed)'):'';
+  const ds=d!==null?(d===0?' (Today!)':d>0?` (in ${d} day${d===1?'':'s'})`:' (passed)'):'';
   let body=`<div class="detail-grid">
     <div class="di"><div class="dl">Status</div><div class="dv">${statusBadge(c.status)}</div></div>
     <div class="di"><div class="dl">Type</div><div class="dv">${c.type||'—'}</div></div>
