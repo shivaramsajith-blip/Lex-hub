@@ -158,6 +158,30 @@
   /* LOADING */
   .loading{text-align:center;padding:40px;color:var(--text-muted);}
 
+
+    
+  /* SEARCH DROPDOWN */
+  .search-wrap{position:relative;}
+  .search-dropdown{position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--dark2);border:1px solid var(--border);border-radius:10px;z-index:200;box-shadow:0 8px 32px rgba(0,0,0,.5);overflow:hidden;max-height:400px;overflow-y:auto;}
+  .sd-section{padding:6px 0;}
+  .sd-label{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);padding:6px 14px 3px;font-weight:700;}
+  .sd-item{display:flex;align-items:center;gap:10px;padding:8px 14px;cursor:pointer;transition:background .15s;}
+  .sd-item:hover{background:var(--dark3);}
+  .sd-icon{font-size:13px;flex-shrink:0;width:18px;text-align:center;}
+  .sd-main{font-size:13px;font-weight:500;flex:1;}
+  .sd-sub{font-size:11px;color:var(--text-muted);}
+  .sd-divider{height:1px;background:var(--border);margin:2px 0;}
+  .sd-empty{padding:14px;text-align:center;color:var(--text-muted);font-size:13px;}
+  mark{background:rgba(201,168,76,0.25);color:var(--gold);border-radius:2px;padding:0 2px;}
+
+  /* CLIENT GROUPING */
+  .client-group-row{background:var(--dark3) !important;cursor:default !important;}
+  .client-group-row td{padding:8px 14px 6px !important;}
+  .client-group-header{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--gold);letter-spacing:0.5px;}
+  .client-group-header .cg-count{background:var(--gold);color:var(--dark);border-radius:10px;font-size:10px;padding:1px 7px;font-weight:700;}
+  .client-group-header .cg-toggle{margin-left:auto;cursor:pointer;color:var(--text-muted);font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;transition:all .15s;}
+  .client-group-header .cg-toggle:hover{border-color:var(--gold);color:var(--gold);}
+  .case-indent td:first-child{padding-left:28px !important;}
   ::-webkit-scrollbar{width:5px;height:5px;}
   ::-webkit-scrollbar-thumb{background:var(--dark4);border-radius:10px;}
 </style>
@@ -204,12 +228,23 @@
 <main class="main">
   <div class="topbar">
     <div class="topbar-title" id="page-title">Dashboard</div>
-    <div class="search-bar"><span>🔍</span><input type="text" id="search-input" placeholder="Search cases, clients..." oninput="doSearch()"></div>
+    <div class="search-wrap">
+      <div class="search-bar" style="width:320px;">
+        <span>🔍</span>
+        <input type="text" id="search-input" placeholder="Search cases, clients, courts..."
+          oninput="doSearch()"
+          onfocus="showDropdown()"
+          onkeydown="searchKeyNav(event)"
+          autocomplete="off">
+        <span id="search-clear" style="cursor:pointer;color:var(--text-muted);display:none;" onclick="clearSearch()">✕</span>
+      </div>
+      <div class="search-dropdown" id="search-dropdown" style="display:none;width:380px;"></div>
+    </div>
     <label class="btn btn-outline btn-sm" style="cursor:pointer;" title="Import backup">
       📂 Import
       <input type="file" accept=".json" onchange="importData(this)" style="display:none">
     </label>
-    <button class="btn btn-gold" onclick="openNewCase()">+ New Case</button>
+    <button class="btn btn-gold" onclick="openNewCase()" id="btn-new-case">+ New Case</button>
   </div>
 
   <!-- DASHBOARD -->
@@ -361,6 +396,7 @@ function initials(n){ if(!n)return'?'; return n.split(' ').map(w=>w[0]).join('')
 function fdate(d){ if(!d)return'—'; return new Date(d+'T00:00:00').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}); }
 function daysUntil(d){ if(!d)return null; const diff=new Date(d+'T00:00:00')-new Date(new Date().toDateString()); return Math.ceil(diff/86400000); }
 
+
 // ── API ──────────────────────────────────────────────────────
 async function api(method, path, body){
   try {
@@ -440,6 +476,8 @@ function renderDashboard(){
 }
 
 // ── RENDER ALL CASES ─────────────────────────────────────────
+const collapsedClients = new Set();
+
 function renderAll(){
   let list = cases.filter(c=>{
     if(currentFilter==='All') return true;
@@ -460,10 +498,37 @@ function renderAll(){
   const empty = document.getElementById('empty-msg');
   if(!list.length){ tbody.innerHTML=''; empty.style.display='block'; return; }
   empty.style.display='none';
-  tbody.innerHTML = list.map(c=>caseRow(c,true)).join('');
+  // Group by client
+  const grouped = {};
+  list.forEach(c=>{ const k=c.client||'(No Client)'; if(!grouped[k]) grouped[k]=[]; grouped[k].push(c); });
+  let html='';
+  for(const [client,clientCases] of Object.entries(grouped)){
+    const multi=clientCases.length>1;
+    const collapsed=collapsedClients.has(client);
+    if(multi){
+      const safe=client.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      html+=`<tr class="client-group-row">
+        <td colspan="8"><div class="client-group-header">
+          <div class="avatar" style="background:${acolor(client)};width:22px;height:22px;font-size:9px;">${initials(client)}</div>
+          ${client}
+          <span class="cg-count">${clientCases.length} cases</span>
+          <span class="cg-toggle" onclick="toggleClientGroup('${safe}')">${collapsed?'▶ Show':'▼ Hide'}</span>
+        </div></td></tr>`;
+      if(!collapsed) clientCases.forEach(c=>{ html+=caseRow(c,true,'case-indent'); });
+    } else {
+      html+=caseRow(clientCases[0],true,'');
+    }
+  }
+  tbody.innerHTML=html;
 }
 
-function caseRow(c, full){
+function toggleClientGroup(client){
+  if(collapsedClients.has(client)) collapsedClients.delete(client);
+  else collapsedClients.add(client);
+  renderAll();
+}
+
+function caseRow(c, full, extraClass=''){
   const d=c.next_hearing?daysUntil(c.next_hearing):null;
   const dateHtml = d===null?'—': d<0?`<span style="color:var(--text-muted)">${fdate(c.next_hearing)}</span>`:
     `<span class="${d<=3?'date-soon':d<=7?'date-upcoming':''}">${fdate(c.next_hearing)}</span>`;
@@ -474,14 +539,15 @@ function caseRow(c, full){
     <button class="icon-btn" onclick="event.stopPropagation();openDetail('${c.id}')">👁</button>
     <button class="icon-btn" onclick="event.stopPropagation();openEdit('${c.id}')">✏</button>
   </div></td>` : '';
-  return `<tr class="row" onclick="openDetail('${c.id}')">
-    <td><div class="case-num">${c.case_number||'—'}</div></td>
-    <td><div class="case-title">${c.title||'Untitled'}</div><div class="case-client">${c.client||''}</div></td>
+  const q = searchQ.toLowerCase();
+  return `<tr class="row ${extraClass}" onclick="openDetail('${c.id}')">
+    <td><div class="case-num">${highlight(c.case_number||'—', q)}</div></td>
+    <td><div class="case-title">${highlight(c.title||'Untitled', q)}</div><div class="case-client">${highlight(c.client||'', q)}</div></td>
     <td>${statusBadge(c.status)}</td>
-    <td><span class="court-tag">${c.court||'—'}</span></td>
+    <td><span class="court-tag">${highlight(c.court||'—', q)}</span></td>
     <td>${dateHtml}</td>
     <td>${assignee}</td>
-    ${full?`<td style="color:var(--text-muted);font-size:12px">${c.type||'—'}</td>`:''}
+    ${full?`<td style="color:var(--text-muted);font-size:12px">${highlight(c.type||'—', q)}</td>`:''}
     ${actions}
   </tr>`;
 }
@@ -502,7 +568,99 @@ function filterStatus(s){ showView('cases'); currentFilter=s; document.querySele
 function filterCourt(c){ showView('cases'); searchQ=c; document.getElementById('search-input').value=c; renderAll(); }
 function setChip(f,el){ currentFilter=f; document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active')); el.classList.add('active'); renderAll(); }
 function sortBy(k){ currentSort.asc=currentSort.key===k?!currentSort.asc:true; currentSort.key=k; renderAll(); }
-function doSearch(){ searchQ=document.getElementById('search-input').value; if(document.getElementById('view-cases').style.display!=='none') renderAll(); }
+function clearSearch(){
+  document.getElementById('search-input').value='';
+  document.getElementById('search-clear').style.display='none';
+  document.getElementById('search-dropdown').style.display='none';
+  searchQ=''; renderAll();
+}
+
+function doSearch(){
+  searchQ=document.getElementById('search-input').value;
+  document.getElementById('search-clear').style.display = searchQ ? 'inline' : 'none';
+  if(searchQ.trim()){
+    buildDropdown(searchQ);
+    document.getElementById('search-dropdown').style.display='block';
+  } else {
+    document.getElementById('search-dropdown').style.display='none';
+  }
+  renderAll();
+}
+
+function showDropdown(){
+  if(searchQ.trim()){ buildDropdown(searchQ); document.getElementById('search-dropdown').style.display='block'; }
+}
+
+let ddIndex=-1;
+function searchKeyNav(e){
+  const items=document.querySelectorAll('.sd-item');
+  if(e.key==='ArrowDown'){ ddIndex=Math.min(ddIndex+1,items.length-1); highlightDD(items); e.preventDefault(); }
+  else if(e.key==='ArrowUp'){ ddIndex=Math.max(ddIndex-1,0); highlightDD(items); e.preventDefault(); }
+  else if(e.key==='Enter'&&ddIndex>=0){ items[ddIndex]?.click(); e.preventDefault(); }
+  else if(e.key==='Escape'){ document.getElementById('search-dropdown').style.display='none'; ddIndex=-1; }
+}
+function highlightDD(items){ items.forEach((el,i)=>el.style.background=i===ddIndex?'var(--dark4)':''); }
+
+function buildDropdown(q){
+  const ql=q.toLowerCase();
+  const dd=document.getElementById('search-dropdown');
+  const matched=cases.filter(c=>[c.title,c.client,c.case_number,c.court,c.type,c.assignee].some(v=>v&&v.toLowerCase().includes(ql)));
+  if(!matched.length){ dd.innerHTML='<div class="sd-empty">No results for "'+q+'"</div>'; return; }
+  const byCase=matched.filter(c=>c.case_number&&c.case_number.toLowerCase().includes(ql));
+  const byClient=matched.filter(c=>c.client&&c.client.toLowerCase().includes(ql));
+  const byTitle=matched.filter(c=>c.title&&c.title.toLowerCase().includes(ql)&&!byCase.includes(c)&&!byClient.includes(c));
+  const byCourt=matched.filter(c=>c.court&&c.court.toLowerCase().includes(ql)&&!byCase.includes(c)&&!byClient.includes(c)&&!byTitle.includes(c));
+  const rest=matched.filter(c=>!byCase.includes(c)&&!byClient.includes(c)&&!byTitle.includes(c)&&!byCourt.includes(c));
+  function rg(label,icon,items){
+    if(!items.length) return '';
+    let s=`<div class="sd-section"><div class="sd-label">${icon} ${label}</div>`;
+    items.slice(0,5).forEach(c=>{
+      s+=`<div class="sd-item" onclick="pickResult('${c.id}')">
+        <div class="sd-icon">${statusIcon(c.status)}</div>
+        <div style="flex:1;min-width:0;">
+          <div class="sd-main">${hlite(c.title||'Untitled',ql)}</div>
+          <div class="sd-sub">${hlite(c.case_number||'',ql)} · ${hlite(c.client||'',ql)}</div>
+        </div>
+        <div style="flex-shrink:0">${statusBadge(c.status)}</div>
+      </div>`;
+    });
+    if(items.length>5) s+=`<div style="padding:5px 14px;font-size:11px;color:var(--text-muted);">+${items.length-5} more</div>`;
+    return s+'</div>';
+  }
+  let html=rg('Case Numbers','📁',byCase);
+  if(html&&byClient.length) html+='<div class="sd-divider"></div>';
+  html+=rg('Clients','👤',byClient);
+  if(byTitle.length&&html) html+='<div class="sd-divider"></div>';
+  html+=rg('Case Titles','⚖',byTitle);
+  if(byCourt.length&&html) html+='<div class="sd-divider"></div>';
+  html+=rg('Courts','🏛',byCourt);
+  if(rest.length&&html) html+='<div class="sd-divider"></div>';
+  html+=rg('Other','🔍',rest);
+  dd.innerHTML=html; ddIndex=-1;
+}
+function hlite(text,q){
+  if(!text||!q) return text||'';
+  const escaped=q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  return text.replace(new RegExp('('+escaped+')','gi'),'<mark>$1</mark>');
+}
+function statusIcon(s){
+  return {Active:'🟢',Urgent:'🔴',Dormant:'⏸','Hearing Scheduled':'📅',Closed:'✅'}[s]||'📁';
+}
+function pickResult(id){
+  document.getElementById('search-dropdown').style.display='none';
+  document.getElementById('search-input').value='';
+  document.getElementById('search-clear').style.display='none';
+  searchQ=''; openDetail(id);
+}
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.search-wrap')) document.getElementById('search-dropdown').style.display='none';
+});
+function highlight(text,q){
+  if(!text) return '—';
+  if(!q) return text;
+  const escaped=q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  return text.replace(new RegExp('('+escaped+')','gi'),'<mark>$1</mark>');
+}
 
 // ── MODALS ────────────────────────────────────────────────────
 function openModal(id){ document.getElementById(id).classList.add('open'); }
@@ -673,6 +831,8 @@ function toast(msg, type='success'){
   el.textContent=msg; el.className=`toast show ${type}`;
   clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),3000);
 }
+
+
 
 // ── INIT ─────────────────────────────────────────────────────
 loadAll();
